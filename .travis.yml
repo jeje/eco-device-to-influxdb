@@ -1,0 +1,23 @@
+language: rust
+rust:
+    - nightly
+
+cache: cargo
+
+services:
+    - docker
+
+env:
+    global:
+        - IMAGE_NAME=jeje/eco-device-to-influxdb
+  
+install:
+    - docker build -t $IMAGE_NAME .
+
+before_deploy:
+    - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+deploy:
+    provider: script
+    script: docker push "${IMAGE_NAME}:latest"
+    on:
+        branch: master
