@@ -4,9 +4,12 @@ use rocket::response::Responder;
 #[macro_use] extern crate influx_db_client;
 use influx_db_client::{Client, Point, Points, Value, Precision};
 #[macro_use] extern crate failure;
+#[macro_use] extern crate log;
+extern crate env_logger;
 use std::{env};
 
 fn main() {
+    env_logger::init();
     rocket::ignite().mount("/", routes![import_eco_device_report]).launch();
 }
 
@@ -14,18 +17,23 @@ fn main() {
 fn import_eco_device_report(ppap: i64, hphp: i64, hchc: i64, water: i64, heater: i64) -> Result<(), ApiError> {
     let influxdb_url: Result<String, std::env::VarError> = env::var("INFLUXDB_URL");
     if influxdb_url.is_err() {
+        error!("Specify INFLUXDB_URL env parameter, like http://<ip>:8086");
         return Err(ApiError::MissingEnvParameter("Specify INFLUXDB_URL env parameter, like http://<ip>:8086".to_string()));
     }
     let influxdb_url = influxdb_url.unwrap();
     let influxdb_db: Result<String, std::env::VarError> = env::var("INFLUXDB_DB");
     if influxdb_db.is_err() {
+        error!("Specify INFLUXDB_DB env parameter, like 'eco-device'");
         return Err(ApiError::MissingEnvParameter("Specify INFLUXDB_DB env parameter, like 'eco-device'".to_string()));
     }
     let influxdb_db = influxdb_db.unwrap();
 
-    println!("PPAP: {}, HP: {}, HC: {}, water: {} L, heater: {} Wh", ppap, hphp, hchc, water, heater);
+    info!("PPAP: {}, HP: {}, HC: {}, water: {} L, heater: {} Wh", ppap, hphp, hchc, water, heater);
     ingest_into_influxdb(influxdb_url, influxdb_db, ppap, hphp, hchc, water, heater)
-        .map_err(|e: influx_db_client::Error| ApiError::InfluxDB(format!("{}", e)))
+        .map_err(|e: influx_db_client::Error| {
+            error!("Can't write data into InfluxDB: {}", e);
+            ApiError::InfluxDB(format!("{}", e))
+        })
 }
 
 fn ingest_into_influxdb(influxdb_url: String, influxdb_db: String,
